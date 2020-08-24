@@ -7,7 +7,7 @@ ROBLOX asset downloader with many options:
 
 <p>Latest releases can be found <a href="https://github.com/Modnark/rbxdl/releases">here</a></p>
 
-#Prerequisites
+# Prerequisites
 <p>Python 3.x</p>
 <p>Python Requests library</p>
   <p>can be installed with: <strong>pip install requests</strong></p> 
