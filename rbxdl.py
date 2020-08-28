@@ -96,6 +96,7 @@ def saveAsset(astId, astTypeStr, cDir, sDirName, astData, astVer):
                             metaFile.write(f'\t{e} : {jsonMeta[i][e]}\n')
                     else:
                         metaFile.write(f'{i}: {jsonMeta[i]}\n')
+        metaFile.close()
         return 1
     except OSError as e:
         return e
@@ -112,7 +113,7 @@ def download(astId, astVer, args):
         if save == 1:
             print(f'Saved asset sucessfully!')
         else:
-            print(f'Save failed: {save}')
+            print(f'Save failed, Check logs for more info...')
         return 1
     elif resp[0] == 404:
         print('Could not download because asset was not found')
@@ -125,10 +126,13 @@ def download(astId, astVer, args):
 def allVer(astId, args):
     aVer = 1
     while True:
-        time.sleep(0.1)
         if download(astId, aVer, args) == 0:
             break
         aVer += 1
+def writeLogs(msg):
+    logFile = open('rbxdl.log', 'a')
+    logFile.write(f'{msg}\n\n')
+    logFile.close()
 #Reduces code
 def startDL(astId, astVer, args, getAll=False):
     if getAll:
