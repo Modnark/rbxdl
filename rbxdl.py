@@ -1,22 +1,13 @@
-# pylint: disable=unused-variable
-
-#Spaghetti code time!!!
-
-import requests, time, os, sys, argparse, json, random
+import requests, argparse, time, os, random
 from ast import literal_eval
-
-downlUrl = 'https://www.roblox.com/asset/?id='
-infoUrl = 'https://api.roblox.com/Marketplace/ProductInfo?assetId='
-
-#Maybe I could somehow scrape this from the wiki page?
-#todo: combine below with filetypes (arrays instead of strings)
-assetTypes = {
-  0:['Unknown', ''], #handle weird things
+#Still have yet to find a way to reduce this... 
+astTypes = {
+  0:['Unknown', ''],
   1:['Image', '.png'],
   2:['TeeShirt', '.xml'],
   3:['Audio', '.xml'],
   4:['Mesh', ''],
-  5:['Lua', ''],
+  5:['Lua', ''], 
   8:['Hat', '.xml'],
   9:['Place', '.rbxl'],
   10:['Model', '.rbxm'],
@@ -60,170 +51,132 @@ assetTypes = {
   61:['EmoteAnimation', ''],
   62:['Video', '']   
 }
-
-#todo: scan the HTML of audio pages to get the actual location of the mp3
-args = None
-
-cwd = os.getcwd()
-reqCooldown = 1 #prevent being rate limited (I hope)
-curVer = '1.10'
-
-print(f'Metalhead\'s ROBLOX asset downloader version: {curVer}\nType -h for help')
-
-def getType(assetID):
-  metaJsonReq = requests.get(f'{infoUrl}{assetID}')
-  metaJson = metaJsonReq.json()
-  if 'AssetTypeId' in metaJson:
-    return metaJson['AssetTypeId']
-  return 0
-
-def writeToLogs(msg):
-  logs = open('logs.txt', 'a')
-  logs.write(f'####################################################################\n{msg}\n\n')
-  logs.close
-
-def makeDirectory(dirName):
-  if not os.path.isdir(dirName):
-    os.mkdir(dirName)
-
-def saveFile(fname, assetID, fileMode, enc = None):
-  try:
-    aType = getType(assetID)
-    if args.customdir:
-      useDir = args.customdir
-      makeDirectory(useDir)
-    else:  
-      useDir = 'downloads'    
-      makeDirectory(useDir)
-    if args.sepdir:
-      makeDirectory(f'{useDir}\\{assetTypes[aType][0]}')
-      makeDirectory(f'{useDir}\\{assetTypes[aType][0]}\\{assetID}')
-      fileUseDir = f'{useDir}\\{assetTypes[aType][0]}\\{assetID}\\{fname}' 
+#urls used in program
+astUrl = 'https://www.roblox.com/asset/?id='
+apiUrl = 'https://api.roblox.com/marketplace/productinfo?assetId='
+#Creates web requests and handles most errors and status codes
+def makeWebReq(url):
+    try:
+        resp = requests.get(url)
+        resp.close()
+        return [resp.status_code, resp]
+    except requests.RequestException as e:
+        print(e)
+#used for getting metadata of an asset
+def getMeta(astId, specific = None):
+    resp = makeWebReq(f'{apiUrl}{astId}')
+    if resp[0] == 200:
+        return resp[1].json().get(specific) or resp[1].json()
     else:
-      fileUseDir = f'{useDir}\\{assetTypes[aType][0]}\\{fname}'   
-    makeDirectory(f'{useDir}\\{assetTypes[aType][0]}')
-    if args.assetver:
-        fname = f'version{args.assetver}-{fname}'
-    if os.path.isfile(fileUseDir):
-      os.unlink(fileUseDir)
-    if enc != None:
-      theFile = open(fileUseDir, fileMode, encoding='utf-8')  
+        return 0
+#Reduces amount of code I need to write
+def createDirectory(dirName):
+    if not os.path.isdir(str(dirName)):
+        os.mkdir(str(dirName))
+    return(str(dirName)) 
+#Save asset to file
+def saveAsset(astId, astTypeStr, cDir, sDirName, astData, astVer):
+    try:
+        createDirectory(cDir)
+        createDirectory(f'{cDir}\\{astTypeStr}')
+        saveLocation = createDirectory(f'{cDir}\\{astTypeStr}\\{astId}') if sDirName is True else f'{cDir}\\{astTypeStr}'
+        fileName = f'{saveLocation}\\{astId}-version{astVer}' if astVer is not None else f'{saveLocation}\\{astId}'
+        assetSave = open(f'{fileName}{astTypes[getMeta(astId, "AssetTypeId")][1]}','wb+')
+        assetSave.write(astData)
+        assetSave.close()
+        jsonMeta = getMeta(astId)
+        if jsonMeta != 0:
+            metaSaveLoc = f'{fileName}-META.txt'
+            if not os.path.isfile(metaSaveLoc):
+                metaFile = open(f'{metaSaveLoc}', 'a', encoding = 'utf-8')
+                for i in jsonMeta:
+                    if i == 'Creator':
+                        metaFile.write('Creator: \n')
+                        for e in jsonMeta[i]:
+                            metaFile.write(f'\t{e} : {jsonMeta[i][e]}\n')
+                    else:
+                        metaFile.write(f'{i}: {jsonMeta[i]}\n')
+        return 1
+    except OSError as e:
+        return e
+#Download asset  
+def download(astId, astVer, args):
+    cDir = args.dir if args.dir is not None else 'Downloaded'
+    sDir = args.sdirs
+    url = f'{astUrl}{astId}&version={astVer}' if astVer is not None else f'{astUrl}{astId}'
+    print(f'Downloading: {url}...')
+    resp = makeWebReq(url)
+    if resp[0] == 200:
+        print(f'Saving: {url}...')
+        save = saveAsset(astId, astTypes[getMeta(astId, 'AssetTypeId')][0], cDir, sDir, resp[1].content, astVer)
+        if save == 1:
+            print(f'Saved asset sucessfully!')
+        else:
+            print(f'Save failed: {save}')
+        return 1
+    elif resp[0] == 404:
+        print('Could not download because asset was not found')
+    elif resp[0] == 403:
+        print('Could not download because asset is copylocked')
     else:
-      theFile = open(fileUseDir, fileMode)
-    return theFile
-  except Exception as e:
-    print(f'Exception occured in saveFile. Logged to file')
-    writeToLogs(e)
-
-def getMeta(assetID):
-  try:
-    metaJsonReq = requests.get(f'{infoUrl}{assetID}')
-    metaJson = metaJsonReq.json()
-    assetMeta = saveFile(f'{assetID}-meta.txt', assetID, 'a', 'utf-8')
-    for key in metaJson:
-      if key != 'Creator':
-        assetMeta.write(f'{key}: {metaJson[key]}\n')
-      if key == 'Creator':
-        for creaKey in metaJson[key]:
-          assetMeta.write(f'{creaKey}: {metaJson[key][creaKey]}\n')
-    assetMeta.close()
-  except Exception as e:
-    print(f'Exception occured in getMeta. Logged to file')
-    writeToLogs(e)
-
-def makeDownloadReq(assetID, tryVer = None):
-  try:
-    if args.assetver and tryVer == None:
-      assetReq = requests.get(f'{downlUrl}{assetID}&version={args.assetver}')
-      print(f'Downloading asset: {assetID} with version of: {args.assetver}')
-    elif tryVer != None:
-      assetReq = requests.get(f'{downlUrl}{assetID}&version={tryVer}')
-      print(f'Downloading asset: {assetID} with version of: {tryVer}')    
+        print(f'Could not download due to {resp[0]}')
+    return 0
+#attempt to get every version of the asset
+def allVer(astId, args):
+    aVer = 1
+    while True:
+        time.sleep(0.1)
+        if download(astId, aVer, args) == 0:
+            break
+        aVer += 1
+#Reduces code
+def startDL(astId, astVer, args, getAll=False):
+    if getAll:
+        allVer(astId, args)
     else:
-      assetReq = requests.get(f'{downlUrl}{assetID}')
-      print(f'Downloading asset: {assetID}')   
-
-    resCode = assetReq.status_code
-    if resCode == 200:
-      assetType = getType(assetID)
-      fExt = assetTypes[assetType][1]
-      if tryVer != None:
-        fName = f'{tryVer}-{assetID}{fExt}'
-      else:
-        fName = f'{assetID}{fExt}'
-      saved = saveFile(fName, assetID, 'wb')
-      saved.write(assetReq.content)
-      if args.savemeta:
-        getMeta(assetID)
-      return 0   
-    elif resCode == 404:
-      print(f'asset {assetID} not found')
-    elif resCode == 403:
-      print(f'asset {assetID} is most likely copylocked')
-    elif resCode == 429:
-      print(f'Too many requests are being sent!')
-    else:
-      print(f'Error while downloading: {assetID} reason: HTTP {resCode}')
-    return 1
-  except Exception as e:
-    print(f'Exception occured in makeDownloadReq. Logged to file')
-    writeToLogs(e)
-
-def doRetries(assetId):
-  if not args.assetver:
-    sys.exit('Please use -ver to specify the number of attempts')
-  for i in range(1,args.assetver+1):
-    makeDownloadReq(assetId, i)
-  return 1
-
-def download():
-  idArr = literal_eval(args.assetid) #converts the input into an int or in the case of bulk and range to an array
-  if args.downlmode == 'downl':
-    if args.tryvers:
-      doRetries(idArr)
-    else:
-       makeDownloadReq(idArr)
-    print(f'Completed download of asset: {idArr}')
-  elif args.downlmode == 'bulk':
-    for i in range(len(idArr)):
-      if args.tryvers:
-        doRetries(idArr)
-      else:
-        makeDownloadReq(idArr[i])
-      time.sleep(reqCooldown)
-    print(f'Completed download of assets: {args.assetid}')
-  elif args.downlmode == 'roulette':
-    for i in range(idArr):
-      while True:
-        randId = random.randint(1000, 5000000000)
-        if makeDownloadReq(randId) == 0:
-          break
-  else:
-    if len(idArr) > 2:
-      sys.exit(f'range mode can only have a length of 2 not {len(idArr)}')
-    minRange = idArr[0]
-    maxRange = idArr[1]
-    for i in range(minRange, maxRange+1):
-      if args.tryvers:
-        doRetries(i)
-      else:
-        makeDownloadReq(idArr[i])
-      time.sleep(reqCooldown)
-    print(f'Completed download of assets between {minRange} and {maxRange}')   
-
-def postInput():
-  valid = ['downl', 'bulk', 'range', 'roulette']
-  if not args.downlmode in valid:
-    sys.exit(f'The specified download mode "{args.downlmode}" is invalid. Please use [-h] to get all valid options')
-  download()
-
-parser = argparse.ArgumentParser(description='Download assets from ROBLOX with various extra options')
-parser.add_argument('downlmode', help='Choose between: downl, bulkdownl, rangedownl, and roulette', type=str)
-parser.add_argument('assetid', help='The ID of the asset. bulk example: [id1,id2,id3, etc.]. range is the same but with a min and max id', type=str)
-parser.add_argument('-ver', '--assetver', help='Version number for the asset ID', type=int)
-parser.add_argument('-cdir', '--customdir', help='Saves files to a custom directory. Will create directory if it doesn\'t exist', type=str)
-parser.add_argument('-spd', '--sepdir', help='Save assets in their own directories named by their ID', action='store_true')
-parser.add_argument('-smt', '--savemeta', help='Save extra info of an asset (eg. creator name)', action='store_true')
-parser.add_argument('-tvr', '--tryvers', help='[Warning: This is unstable] will try to download every version of the asset specified', action='store_true')
-args = parser.parse_args()
-postInput()
+        return download(astId, astVer, args)        
+#Handle the user input 
+def handleArgs(args):
+    astId = literal_eval(args.assetid)
+    dlm = args.downlmode
+    astVer = args.ver 
+    getAll = args.allVer
+    if dlm == 'single':
+        startDL(astId, astVer, args, getAll)
+    elif dlm == 'bulk':
+        if isinstance(astId, list):
+            for i in astId:
+                startDL(i, astVer, args, getAll)
+        else:
+            raise TypeError('Incorrect format for bulk downloading. Should be layed out as [id1,id2,id3,etc..]')   
+    elif dlm == 'range':
+        if isinstance(astId, list) and len(astId) == 2:
+            for i in range(astId[0], astId[1]+1):
+                startDL(i, astVer, args, getAll)
+        else:
+            raise TypeError('Incorrect format for range downloading. Should be laid out as [minId, maxId]') 
+    elif dlm == 'roulette':
+        rlAmn = args.rltAmnt if args.rltAmnt is not None else 1  
+        rlType = args.rltType
+        for i in range(1,rlAmn+1):
+            while True:
+                canDl = True
+                randomId = random.randint(1000, 5000000000)
+                if rlType is not None:
+                    if getMeta(randomId, 'AssetTypeId') != rlType:
+                        canDl = False    
+                if canDl:
+                    if startDL(randomId, None, args) == 1:
+                        break                
+#argparse 
+cmdParse = argparse.ArgumentParser(description='Download assets from ROBLOX.')
+cmdParse.add_argument('downlmode', choices=['single', 'bulk', 'range', 'roulette'], help='mode for asset downloading', type=str)
+cmdParse.add_argument('assetid', help='id(s) of asset', type=str)
+cmdParse.add_argument('--dir', help='save assets into your own directory', type=str)
+cmdParse.add_argument('--ver', help='version(s) of the asset(s)', type=str)
+cmdParse.add_argument('--sdirs', help='save assets in their own directories', action='store_true')
+cmdParse.add_argument('--allVer', help='Download all of the versions of an asset (slow)', action='store_true')
+cmdParse.add_argument('--rltAmnt', help='How many times should the roulette download something?', type=int)
+cmdParse.add_argument('--rltType', help='What specific asset type should the roulette look for?', type=int)
+args = cmdParse.parse_args()
+handleArgs(args)
