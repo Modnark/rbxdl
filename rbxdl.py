@@ -61,7 +61,8 @@ def makeWebReq(url):
         resp.close()
         return [resp.status_code, resp]
     except requests.RequestException as e:
-        print(e)
+        print("Exception occured whilst making request. This has been logged.")
+        writeLogs(e)
 #used for getting metadata of an asset
 def getMeta(astId, specific = None):
     resp = makeWebReq(f'{apiUrl}{astId}')
@@ -99,6 +100,7 @@ def saveAsset(astId, astTypeStr, cDir, sDirName, astData, astVer):
         metaFile.close()
         return 1
     except OSError as e:
+        writeLogs(e)
         return e
 #Download asset  
 def download(astId, astVer, args):
