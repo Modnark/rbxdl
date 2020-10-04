@@ -52,7 +52,7 @@ astTypes = {
   62:['Video', '']   
 }
 #urls used in program
-astUrl = 'https://www.roblox.com/asset/?id='
+astUrl = 'https://assetdelivery.roblox.com/v1/asset?id='
 apiUrl = 'https://api.roblox.com/marketplace/productinfo?assetId='
 #Creates web requests and handles most errors and status codes
 def makeWebReq(url):
