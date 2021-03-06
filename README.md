@@ -1,5 +1,5 @@
 # rbxdl
-ROBLOX Asset downloader created by me (Metalhead aka. Modnark)
+ROBLOX Asset downloader
 
 There are many things you can do with this little tool
 
