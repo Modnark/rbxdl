@@ -97,7 +97,7 @@ def saveAsset(astId, astTypeStr, cDir, sDirName, astData, astVer):
                             metaFile.write(f'\t{e} : {jsonMeta[i][e]}\n')
                     else:
                         metaFile.write(f'{i}: {jsonMeta[i]}\n')
-        metaFile.close()
+             metaFile.close()
         return 1
     except OSError as e:
         writeLogs(e)
