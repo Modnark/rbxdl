@@ -154,7 +154,7 @@ def handleArgs(args):
             for i in astId:
                 startDL(i, astVer, args, getAll)
         else:
-            raise ValueError('Incorrect format for bulk downloading. Should be layed out as [id1,id2,id3,etc..]')   
+            raise ValueError('Incorrect format for bulk downloading. Should be laid out as [id1,id2,id3,etc..]')   
     elif dlm == 'range':
         if isinstance(astId, list) and len(astId) == 2:
             for i in range(astId[0], astId[1]+1):
